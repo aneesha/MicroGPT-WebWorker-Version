@@ -1,0 +1,10 @@
+{
+  "name": "microgpt-webworker-version",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "build": "cp src/index.html dist/index.html && cp src/main.js dist/main.js && cp src/worker.js dist/worker.js && cp src/utils.js dist/utils.js"
+  }
+}

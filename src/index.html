@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MicroGPT WebWorker Trainer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <style>
+      :root {
+        --bg: #f6f8fc;
+        --panel: #ffffff;
+        --panel-muted: #eef3fb;
+        --ink: #10243d;
+        --ink-soft: #4f657d;
+        --accent: #e46b22;
+        --accent-2: #0c9f9b;
+        --line: #d6e0f1;
+        --shadow: 0 22px 50px rgba(16, 36, 61, 0.14);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Space Grotesk", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 10% 20%, rgba(228, 107, 34, 0.16), transparent 40%),
+          radial-gradient(circle at 85% 0%, rgba(12, 159, 155, 0.2), transparent 38%),
+          linear-gradient(140deg, #f7f9fd 0%, #eff5fb 48%, #e9f2f6 100%);
+      }
+
+      a {
+        color: #0f6f9f;
+      }
+
+      .shell {
+        max-width: 1160px;
+        margin: 0 auto;
+        padding: 28px 16px 36px;
+        animation: rise 420ms ease-out;
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(14px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .title {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+
+      .title h1 {
+        margin: 0;
+        font-size: clamp(1.75rem, 4vw, 2.6rem);
+        letter-spacing: -0.02em;
+      }
+
+      .title p {
+        margin: 0;
+        max-width: 72ch;
+        color: var(--ink-soft);
+      }
+
+      .layout {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 370px 1fr;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid rgba(16, 36, 61, 0.07);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        padding: 18px;
+      }
+
+      .controls {
+        display: grid;
+        gap: 14px;
+      }
+
+      .controls h2,
+      .insights h2 {
+        margin: 0;
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #3f5976;
+      }
+
+      .stack {
+        display: grid;
+        gap: 8px;
+      }
+
+      .stack label {
+        font-size: 0.86rem;
+        font-weight: 500;
+        color: #2e4964;
+      }
+
+      .stack input,
+      .stack select,
+      .stack button {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #fff;
+        padding: 10px 11px;
+        font-family: inherit;
+        color: var(--ink);
+      }
+
+      .stack input:focus,
+      .stack select:focus {
+        outline: 2px solid rgba(12, 159, 155, 0.22);
+        border-color: var(--accent-2);
+      }
+
+      .grid2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .dataset-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .dataset-stat {
+        background: var(--panel-muted);
+        border-radius: 10px;
+        padding: 8px;
+      }
+
+      .dataset-stat p {
+        margin: 0;
+      }
+
+      .dataset-stat .k {
+        font-size: 0.72rem;
+        color: #5a7391;
+        text-transform: uppercase;
+      }
+
+      .dataset-stat .v {
+        margin-top: 3px;
+        font-size: 1rem;
+        font-weight: 700;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      button {
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      #startBtn,
+      #generateBtn {
+        border: none;
+        color: #fff;
+        background: linear-gradient(120deg, var(--accent), #db8954);
+      }
+
+      #stopBtn {
+        border: 1px solid #d9e2ee;
+        background: #f8fbff;
+      }
+
+      .hint {
+        margin: 0;
+        font-size: 0.81rem;
+        color: #5c7189;
+      }
+
+      .insights {
+        display: grid;
+        gap: 12px;
+      }
+
+      .stat-row {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .stat {
+        background: var(--panel-muted);
+        border-radius: 12px;
+        padding: 10px;
+      }
+
+      .stat .k {
+        margin: 0;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        color: #5a7391;
+      }
+
+      .stat .v {
+        margin: 4px 0 0;
+        font-size: 1.1rem;
+        font-weight: 700;
+      }
+
+      .chart-wrap {
+        background: #fff;
+        border: 1px solid #e6edf8;
+        border-radius: 14px;
+        padding: 12px;
+        min-height: 320px;
+      }
+
+      .log-wrap,
+      .sample-wrap,
+      .generate-wrap {
+        background: #fbfdff;
+        border: 1px solid #e6edf8;
+        border-radius: 12px;
+        padding: 10px;
+      }
+
+      .generate-wrap {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: 1fr;
+      }
+
+      .generate-wrap .stack {
+        margin: 0;
+      }
+
+      .generate-wrap button {
+        width: 100%;
+      }
+
+      .log-wrap pre {
+        margin: 0;
+        max-height: 148px;
+        overflow: auto;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.78rem;
+        color: #234058;
+      }
+
+      .sample-wrap ul {
+        margin: 0;
+        padding-left: 1.1rem;
+        max-height: 160px;
+        overflow: auto;
+      }
+
+      .sample-wrap li {
+        font-family: "IBM Plex Mono", monospace;
+      }
+
+      @media (max-width: 1024px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .stat-row,
+        .dataset-stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .actions,
+        .grid2,
+        .generate-wrap {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="title">
+        <h1>MicroGPT in the Browser</h1>
+        <p>
+          This is a browser port of Andrej Karpathy's dependency-free
+          <a href="https://gist.github.com/karpathy/8627fe009c40f57531cb18360106ce95" target="_blank" rel="noreferrer">MicroGPT in 200 lines of Python gist</a>,
+          running in Pyodide inside a Web Worker so training does not freeze the page.
+          The model learns to generate names.
+        </p>
+      </section>
+
+      <section class="layout">
+        <aside class="panel controls">
+          <h2>Training Controls</h2>
+
+          <div class="stack">
+            <label for="datasetUrl">Dataset (hardcoded)</label>
+            <input id="datasetUrl" type="url" readonly spellcheck="false" />
+            <p class="hint">This dataset contains first names, one name per line.</p>
+            <p class="hint">Load state: <strong id="datasetState">Loading...</strong></p>
+          </div>
+
+          <div class="dataset-stats">
+            <article class="dataset-stat"><p class="k">Rows</p><p class="v" id="datasetDocs">-</p></article>
+            <article class="dataset-stat"><p class="k">Vocab (+BOS)</p><p class="v" id="datasetVocab">-</p></article>
+            <article class="dataset-stat"><p class="k">Avg chars</p><p class="v" id="datasetAvgLength">-</p></article>
+          </div>
+
+          <div class="grid2">
+            <div class="stack">
+              <label for="numSteps">Training steps</label>
+              <input id="numSteps" type="number" min="10" max="5000" value="500" />
+            </div>
+            <div class="stack">
+              <label for="learningRate">Learning rate</label>
+              <input id="learningRate" type="number" min="0.0001" max="0.5" step="0.0001" value="0.01" />
+            </div>
+            <div class="stack">
+              <label for="seed">Seed</label>
+              <input id="seed" type="number" min="0" max="999999" value="42" />
+            </div>
+            <div class="stack">
+              <label for="reportEvery">Report every N steps</label>
+              <input id="reportEvery" type="number" min="1" max="200" value="1" />
+            </div>
+          </div>
+
+          <p class="hint">
+            For local testing, run a static server (for example: <code>python -m http.server</code>) so worker and fetch APIs work.
+          </p>
+
+          <div class="actions">
+            <button id="startBtn" type="button">Start Training</button>
+            <button id="stopBtn" type="button" disabled>Stop</button>
+          </div>
+        </aside>
+
+        <section class="panel insights">
+          <h2>Live Monitor</h2>
+          <div class="stat-row">
+            <article class="stat"><p class="k">Status</p><p class="v" id="statusValue">Idle</p></article>
+            <article class="stat"><p class="k">Step</p><p class="v" id="stepValue">0</p></article>
+            <article class="stat"><p class="k">Loss</p><p class="v" id="lossValue">-</p></article>
+            <article class="stat"><p class="k">Speed</p><p class="v" id="speedValue">-</p></article>
+          </div>
+
+          <div class="chart-wrap">
+            <canvas id="lossChart" aria-label="Loss over training steps"></canvas>
+          </div>
+
+          <div class="log-wrap">
+            <pre id="logs">No logs yet.</pre>
+          </div>
+
+          <div class="generate-wrap" id="generateWrap" hidden>
+            <div class="stack">
+              <label for="generateCount">Generate names after training</label>
+              <select id="generateCount">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="15">15</option>
+              </select>
+            </div>
+            <button id="generateBtn" type="button">Generate</button>
+          </div>
+
+          <div class="sample-wrap">
+            <ul id="samples"></ul>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
