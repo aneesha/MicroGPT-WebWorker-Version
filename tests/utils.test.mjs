@@ -19,12 +19,20 @@ test("validateConfig clamps invalid values", () => {
     learning_rate: -1,
     seed: "33",
     report_every: 0,
+    batch_size: 64,
+    warmup_steps: 0,
+    min_lr_ratio: 0.001,
+    grad_clip: 99,
   });
 
   assert.equal(cfg.num_steps, 5000);
   assert.equal(cfg.learning_rate, 0.0001);
   assert.equal(cfg.seed, 33);
   assert.equal(cfg.report_every, 1);
+  assert.equal(cfg.batch_size, 32);
+  assert.equal(cfg.warmup_steps, 1);
+  assert.equal(cfg.min_lr_ratio, 0.01);
+  assert.equal(cfg.grad_clip, 5);
 });
 
 test("ensureEnoughDocs enforces minimum documents", () => {

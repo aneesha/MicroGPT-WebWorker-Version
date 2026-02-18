@@ -13,6 +13,10 @@ export function validateConfig(rawConfig = {}) {
     learning_rate: clampFloat(rawConfig.learning_rate, 0.0001, 0.5, 0.01),
     seed: clampInt(rawConfig.seed, 0, 999999, 42),
     report_every: clampInt(rawConfig.report_every, 1, 200, 1),
+    batch_size: clampInt(rawConfig.batch_size, 1, 32, 4),
+    warmup_steps: clampInt(rawConfig.warmup_steps, 1, 1000, 40),
+    min_lr_ratio: clampFloat(rawConfig.min_lr_ratio, 0.01, 1, 0.15),
+    grad_clip: clampFloat(rawConfig.grad_clip, 0.1, 5, 1.0),
   };
   return cfg;
 }

@@ -308,6 +308,7 @@
           This is a browser port of Andrej Karpathy's dependency-free
           <a href="https://gist.github.com/karpathy/8627fe009c40f57531cb18360106ce95" target="_blank" rel="noreferrer">MicroGPT in 200 lines of Python gist</a>,
           running in Pyodide inside a Web Worker so training does not freeze the page.
+          For better convergence this version adds mini-batch updates, warmup + cosine learning-rate decay, and gradient clipping.
           The model learns to generate names.
         </p>
       </section>

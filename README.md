@@ -11,6 +11,15 @@ A browser-based port of Andrej Karpathy's pure-Python MicroGPT implementation:
 - Shows dataset load state and dataset stats (rows, vocab size, average length)
 - After training completes, lets you generate `5`, `10`, or `15` names on demand
 
+## Convergence improvements in this version
+
+Compared with the original minimalist loop, this browser implementation adds a few extra training lines to improve stability and convergence:
+
+- Mini-batch updates (`batch_size=4`) instead of single-document updates
+- Learning-rate warmup followed by cosine decay
+- Global gradient clipping before Adam updates
+- Slightly smaller initialization scale for weights
+
 ## Project structure
 
 - Source files: `/Users/uqabakh1/research/2026/codex-projects/MicroGPT-WebWorker-Version/src`
@@ -26,6 +35,8 @@ A browser-based port of Andrej Karpathy's pure-Python MicroGPT implementation:
    - `npm run build`
 4. Serve the directory as static files (required for worker + fetch):
    - `python -m http.server`
+   - Node option (no install): `npx serve .`
+   - Node option (http-server): `npx http-server .`
 5. Open:
    - `/Users/uqabakh1/research/2026/codex-projects/MicroGPT-WebWorker-Version/dist/index.html`
 

@@ -8,6 +8,12 @@ import {
 
 const DATASET_URL =
   "https://raw.githubusercontent.com/karpathy/makemore/refs/heads/master/names.txt";
+const CONVERGENCE_DEFAULTS = {
+  batch_size: 4,
+  warmup_steps: 40,
+  min_lr_ratio: 0.15,
+  grad_clip: 1.0,
+};
 
 const el = {
   datasetUrl: document.getElementById("datasetUrl"),
@@ -258,6 +264,7 @@ el.startBtn.addEventListener("click", () => {
       learning_rate: el.learningRate.value,
       seed: el.seed.value,
       report_every: el.reportEvery.value,
+      ...CONVERGENCE_DEFAULTS,
     });
 
     createWorker();

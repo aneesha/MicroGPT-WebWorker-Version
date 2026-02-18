@@ -235,7 +235,7 @@ def run_training(dataset_text, config_json):
     block_size = 16
     head_dim = n_embd // n_head
 
-    matrix = lambda nout, nin, std=0.08: [[Value(random.gauss(0, std)) for _ in range(nin)] for _ in range(nout)]
+    matrix = lambda nout, nin, std=0.06: [[Value(random.gauss(0, std)) for _ in range(nin)] for _ in range(nout)]
     state_dict = {
         "wte": matrix(vocab_size, n_embd),
         "wpe": matrix(block_size, n_embd),
@@ -269,36 +269,60 @@ def run_training(dataset_text, config_json):
     num_steps = int(config.get("num_steps", 500))
     learning_rate = float(config.get("learning_rate", 0.01))
     report_every = max(1, int(config.get("report_every", 1)))
+    batch_size = max(1, int(config.get("batch_size", 4)))
+    warmup_steps = max(1, int(config.get("warmup_steps", max(10, num_steps // 12))))
+    min_lr_ratio = min(1.0, max(0.01, float(config.get("min_lr_ratio", 0.15))))
+    grad_clip = max(0.1, float(config.get("grad_clip", 1.0)))
 
     beta1, beta2, eps_adam = 0.85, 0.99, 1e-8
     m = [0.0] * len(params)
     v = [0.0] * len(params)
 
     final_loss = None
+    def lr_at_step(step_idx):
+        if step_idx < warmup_steps:
+            return learning_rate * (step_idx + 1) / warmup_steps
+        decay_span = max(1, num_steps - warmup_steps)
+        progress = min(1.0, (step_idx - warmup_steps) / decay_span)
+        cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
+        return learning_rate * (min_lr_ratio + (1.0 - min_lr_ratio) * cosine)
+
     send("status", message=f"Dataset docs: {len(docs)} | vocab: {vocab_size} | params: {len(params)}")
+    send("status", message=f"Convergence upgrades: batch={batch_size}, warmup={warmup_steps}, cosine decay, grad clip={grad_clip}")
 
     for step in range(num_steps):
-        doc = docs[step % len(docs)]
-        tokens = [BOS] + [stoi[ch] for ch in doc] + [BOS]
-        n = min(block_size, len(tokens) - 1)
+        batch_losses = []
+        for _ in range(batch_size):
+            doc = random.choice(docs)
+            tokens = [BOS] + [stoi[ch] for ch in doc] + [BOS]
+            n = min(block_size, len(tokens) - 1)
 
-        keys = [[] for _ in range(n_layer)]
-        values = [[] for _ in range(n_layer)]
-        losses = []
-        for pos_id in range(n):
-            token_id = tokens[pos_id]
-            target_id = tokens[pos_id + 1]
-            logits = gpt(state, token_id, pos_id, keys, values)
-            probs = softmax(logits)
-            losses.append(-probs[target_id].log())
+            keys = [[] for _ in range(n_layer)]
+            values = [[] for _ in range(n_layer)]
+            losses = []
+            for pos_id in range(n):
+                token_id = tokens[pos_id]
+                target_id = tokens[pos_id + 1]
+                logits = gpt(state, token_id, pos_id, keys, values)
+                probs = softmax(logits)
+                losses.append(-probs[target_id].log())
 
-        loss = (1 / n) * sum(losses)
+            batch_losses.append((1 / n) * sum(losses))
+
+        loss = (1 / batch_size) * sum(batch_losses)
         loss.backward()
 
-        lr_t = learning_rate * (1 - step / max(1, num_steps))
+        total_sq = sum(p.grad * p.grad for p in params)
+        grad_norm = total_sq ** 0.5
+        clip_scale = 1.0
+        if grad_norm > grad_clip:
+            clip_scale = grad_clip / (grad_norm + 1e-12)
+
+        lr_t = lr_at_step(step)
         for i, p in enumerate(params):
-            m[i] = beta1 * m[i] + (1 - beta1) * p.grad
-            v[i] = beta2 * v[i] + (1 - beta2) * p.grad ** 2
+            g = p.grad * clip_scale
+            m[i] = beta1 * m[i] + (1 - beta1) * g
+            v[i] = beta2 * v[i] + (1 - beta2) * g ** 2
             m_hat = m[i] / (1 - beta1 ** (step + 1))
             v_hat = v[i] / (1 - beta2 ** (step + 1))
             p.data -= lr_t * m_hat / (v_hat ** 0.5 + eps_adam)
@@ -307,7 +331,7 @@ def run_training(dataset_text, config_json):
         final_loss = float(loss.data)
         should_report = (step == 0) or ((step + 1) % report_every == 0) or (step + 1 == num_steps)
         if should_report:
-            send("step", step=step + 1, num_steps=num_steps, loss=final_loss, lr=lr_t)
+            send("step", step=step + 1, num_steps=num_steps, loss=final_loss, lr=lr_t, grad_norm=float(grad_norm))
 
     MODEL_STATE = state
     send("done", final_loss=final_loss)
