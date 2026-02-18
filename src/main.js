@@ -1,13 +1,38 @@
 import {
   docsFromText,
+  docsFromCsvFirstColumn,
   validateConfig,
   ensureEnoughDocs,
   buildSpeedText,
   computeDatasetStats,
+  maxAdditionDigitsForBlockSize,
 } from "./utils.js";
 
-const DATASET_URL =
-  "https://raw.githubusercontent.com/karpathy/makemore/refs/heads/master/names.txt";
+const MODEL_BLOCK_SIZE = 16;
+const ADDITION_MODEL_DIGIT_CAP = maxAdditionDigitsForBlockSize(MODEL_BLOCK_SIZE);
+
+const DATASETS = {
+  names: {
+    id: "names",
+    label: "Names (TXT)",
+    url: "https://raw.githubusercontent.com/karpathy/makemore/refs/heads/master/names.txt",
+    format: "txt",
+    taskType: "names",
+    description: "First names, one name per line.",
+    notes: "Great for unconditional name generation.",
+  },
+  addition: {
+    id: "addition",
+    label: "Addition (CSV)",
+    url: "./data/addition_examples.csv",
+    format: "csv",
+    taskType: "addition",
+    description: "Addition equations, one example per CSV row, e.g. 12+7=19.",
+    notes: "Includes 40,000 examples with addends up to 3 digits.",
+    additionMaxDigits: 3,
+  },
+};
+
 const CONVERGENCE_DEFAULTS = {
   batch_size: 4,
   warmup_steps: 40,
@@ -16,7 +41,10 @@ const CONVERGENCE_DEFAULTS = {
 };
 
 const el = {
+  datasetSelect: document.getElementById("datasetSelect"),
   datasetUrl: document.getElementById("datasetUrl"),
+  datasetHint: document.getElementById("datasetHint"),
+  datasetCapacityHint: document.getElementById("datasetCapacityHint"),
   datasetState: document.getElementById("datasetState"),
   datasetDocs: document.getElementById("datasetDocs"),
   datasetVocab: document.getElementById("datasetVocab"),
@@ -34,6 +62,7 @@ const el = {
   logs: document.getElementById("logs"),
   samples: document.getElementById("samples"),
   generateWrap: document.getElementById("generateWrap"),
+  generateLabel: document.getElementById("generateLabel"),
   generateCount: document.getElementById("generateCount"),
   generateBtn: document.getElementById("generateBtn"),
 };
@@ -43,6 +72,7 @@ let startedAt = 0;
 let datasetDocs = null;
 let isTraining = false;
 let hasTrainedModel = false;
+let selectedDataset = DATASETS.names;
 
 const lossData = {
   labels: [],
@@ -118,7 +148,8 @@ function createWorker() {
 
     if (data.type === "generated") {
       renderSamples(data.samples || []);
-      appendLog(`Generated ${data.count || 0} names.`);
+      const noun = selectedDataset.taskType === "addition" ? "addition tests" : "names";
+      appendLog(`Generated ${data.count || 0} ${noun}.`);
       syncButtons();
       return;
     }
@@ -139,18 +170,43 @@ function createWorker() {
   };
 }
 
-async function loadDataset() {
+function parseDatasetText(text, format) {
+  if (format === "csv") {
+    return docsFromCsvFirstColumn(text);
+  }
+  return docsFromText(text);
+}
+
+function updateDatasetUI(dataset) {
+  el.datasetUrl.value = dataset.url;
+  el.datasetHint.textContent = dataset.description;
+
+  if (dataset.taskType === "addition") {
+    el.datasetCapacityHint.textContent = `Model context supports up to ${ADDITION_MODEL_DIGIT_CAP}-digit addition format (a+b=c). This dataset trains up to ${dataset.additionMaxDigits} digits.`;
+    el.generateLabel.textContent = "Generate addition tests after training";
+    el.generateBtn.textContent = "Generate Tests";
+  } else {
+    el.datasetCapacityHint.textContent = dataset.notes;
+    el.generateLabel.textContent = "Generate names after training";
+    el.generateBtn.textContent = "Generate Names";
+  }
+}
+
+async function loadDataset(datasetId, appendDatasetLog = true) {
+  const dataset = DATASETS[datasetId] || DATASETS.names;
+  selectedDataset = dataset;
+  updateDatasetUI(dataset);
+
   setDatasetState("Loading...");
   el.startBtn.disabled = true;
-  el.datasetUrl.value = DATASET_URL;
 
-  const response = await fetch(DATASET_URL, { cache: "no-store" });
+  const response = await fetch(dataset.url, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Dataset request failed (${response.status}).`);
   }
 
   const text = await response.text();
-  const docs = docsFromText(text);
+  const docs = parseDatasetText(text, dataset.format);
   ensureEnoughDocs(docs);
 
   datasetDocs = docs;
@@ -159,7 +215,14 @@ async function loadDataset() {
   el.datasetVocab.textContent = String(stats.vocabSize);
   el.datasetAvgLength.textContent = stats.avgLength.toFixed(2);
   setDatasetState("Loaded");
-  appendLog(`Loaded names dataset (${stats.docsCount} rows).`);
+
+  if (appendDatasetLog) {
+    appendLog(`Loaded ${dataset.label} (${stats.docsCount} rows).`);
+  }
+
+  hasTrainedModel = false;
+  el.generateWrap.hidden = true;
+  el.samples.innerHTML = "";
   syncButtons();
 }
 
@@ -211,6 +274,7 @@ function setStatus(text) {
 
 function syncButtons() {
   const datasetReady = Array.isArray(datasetDocs) && datasetDocs.length > 1;
+  el.datasetSelect.disabled = isTraining;
   el.startBtn.disabled = isTraining || !datasetReady;
   el.stopBtn.disabled = !isTraining;
   el.generateBtn.disabled = isTraining || !hasTrainedModel;
@@ -244,6 +308,21 @@ function toFixed(value, digits) {
   return n.toFixed(digits);
 }
 
+el.datasetSelect.addEventListener("change", async () => {
+  if (isTraining) {
+    return;
+  }
+
+  try {
+    await loadDataset(el.datasetSelect.value);
+  } catch (error) {
+    setDatasetState("Failed");
+    setStatus("Error");
+    appendLog(error.message || String(error));
+    syncButtons();
+  }
+});
+
 el.startBtn.addEventListener("click", () => {
   if (!datasetDocs) {
     appendLog("Dataset is not loaded yet.");
@@ -257,13 +336,15 @@ el.startBtn.addEventListener("click", () => {
     syncButtons();
     setStatus("Training");
     resetMonitor();
-    appendLog("Starting training...");
+    appendLog(`Starting training on ${selectedDataset.label}...`);
 
     const config = validateConfig({
       num_steps: el.numSteps.value,
       learning_rate: el.learningRate.value,
       seed: el.seed.value,
       report_every: el.reportEvery.value,
+      task_type: selectedDataset.taskType,
+      addition_max_digits: selectedDataset.additionMaxDigits || ADDITION_MODEL_DIGIT_CAP,
       ...CONVERGENCE_DEFAULTS,
     });
 
@@ -297,21 +378,31 @@ el.stopBtn.addEventListener("click", () => {
 
 el.generateBtn.addEventListener("click", () => {
   if (!worker || !hasTrainedModel) {
-    appendLog("Train the model first before generating names.");
+    const noun = selectedDataset.taskType === "addition" ? "addition tests" : "names";
+    appendLog(`Train the model first before generating ${noun}.`);
     return;
   }
 
   const count = Number.parseInt(el.generateCount.value, 10);
   el.generateBtn.disabled = true;
-  appendLog(`Generating ${count} names...`);
+
+  if (selectedDataset.taskType === "addition") {
+    appendLog(`Generating ${count} addition tests...`);
+  } else {
+    appendLog(`Generating ${count} names...`);
+  }
+
   worker.postMessage({ type: "generate", count });
 });
 
 (async () => {
   try {
     setStatus("Idle");
+    el.datasetSelect.value = "names";
+    updateDatasetUI(DATASETS.names);
     syncButtons();
-    await loadDataset();
+    await loadDataset("names", false);
+    appendLog("Loaded default dataset: Names (TXT).");
   } catch (error) {
     setDatasetState("Failed");
     setStatus("Error");

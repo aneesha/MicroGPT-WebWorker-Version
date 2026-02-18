@@ -7,6 +7,22 @@ export function docsFromText(text) {
     .filter(Boolean);
 }
 
+export function docsFromCsvFirstColumn(text) {
+  const lines = docsFromText(text);
+  if (!lines.length) {
+    return [];
+  }
+
+  const maybeHeader = lines[0];
+  const rows = /[+=]/.test(maybeHeader) ? lines : lines.slice(1);
+  return rows
+    .map((line) => {
+      const firstCell = line.split(",")[0];
+      return firstCell ? firstCell.trim() : "";
+    })
+    .filter(Boolean);
+}
+
 export function validateConfig(rawConfig = {}) {
   const cfg = {
     num_steps: clampInt(rawConfig.num_steps, 10, 5000, 500),
@@ -17,6 +33,8 @@ export function validateConfig(rawConfig = {}) {
     warmup_steps: clampInt(rawConfig.warmup_steps, 1, 1000, 40),
     min_lr_ratio: clampFloat(rawConfig.min_lr_ratio, 0.01, 1, 0.15),
     grad_clip: clampFloat(rawConfig.grad_clip, 0.1, 5, 1.0),
+    task_type: rawConfig.task_type === "addition" ? "addition" : "names",
+    addition_max_digits: clampInt(rawConfig.addition_max_digits, 1, 6, 3),
   };
   return cfg;
 }
@@ -51,6 +69,11 @@ export function buildSpeedText(step, elapsedSeconds) {
     return "-";
   }
   return `${(step / elapsedSeconds).toFixed(1)} step/s`;
+}
+
+export function maxAdditionDigitsForBlockSize(blockSize) {
+  const maxSequenceLen = Math.max(1, Number(blockSize) - 1);
+  return Math.max(1, Math.floor((maxSequenceLen - 3) / 3));
 }
 
 function clampInt(value, min, max, fallback) {

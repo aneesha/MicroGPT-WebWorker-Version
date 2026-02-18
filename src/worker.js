@@ -217,6 +217,10 @@ def run_training(dataset_text, config_json):
 
     seed = int(config.get("seed", 42))
     random.seed(seed)
+    task_type = config.get("task_type", "names")
+    if task_type not in ("names", "addition"):
+        task_type = "names"
+    addition_max_digits = max(1, min(6, int(config.get("addition_max_digits", 3))))
 
     docs = [line.strip() for line in dataset_text.splitlines() if line.strip()]
     if len(docs) < 2:
@@ -264,6 +268,8 @@ def run_training(dataset_text, config_json):
         "head_dim": head_dim,
         "state_dict": state_dict,
         "params": params,
+        "task_type": task_type,
+        "addition_max_digits": addition_max_digits,
     }
 
     num_steps = int(config.get("num_steps", 500))
@@ -289,6 +295,8 @@ def run_training(dataset_text, config_json):
 
     send("status", message=f"Dataset docs: {len(docs)} | vocab: {vocab_size} | params: {len(params)}")
     send("status", message=f"Convergence upgrades: batch={batch_size}, warmup={warmup_steps}, cosine decay, grad clip={grad_clip}")
+    if task_type == "addition":
+        send("status", message=f"Addition mode enabled (dataset max digits={addition_max_digits})")
 
     for step in range(num_steps):
         batch_losses = []
@@ -342,9 +350,16 @@ def generate_after_training(count):
         raise ValueError("No trained model found. Run training first.")
 
     count = max(1, min(50, int(count)))
-    temperature = 0.5
     state = MODEL_STATE
+    if state["task_type"] == "addition":
+        samples = generate_addition_tests(state, count)
+    else:
+        samples = generate_name_samples(state, count)
+    send("generated", count=count, samples=samples)
 
+
+def generate_name_samples(state, count):
+    temperature = 0.5
     samples = []
     for _ in range(count):
         keys = [[] for _ in range(state["n_layer"])]
@@ -359,6 +374,60 @@ def generate_after_training(count):
                 break
             sample.append(state["uchars"][token_id])
         samples.append("".join(sample))
+    return samples
 
-    send("generated", count=count, samples=samples)
+
+def max_addition_digits_for_block(block_size):
+    max_seq_len = max(1, block_size - 1)
+    return max(1, (max_seq_len - 3) // 3)
+
+
+def complete_from_prompt(state, prompt, max_new_tokens, temperature=0.2):
+    keys = [[] for _ in range(state["n_layer"])]
+    values = [[] for _ in range(state["n_layer"])]
+    token_id = state["BOS"]
+    generated = []
+    prompt = prompt[: max(0, state["block_size"] - 1)]
+
+    for pos_id in range(state["block_size"]):
+        logits = gpt(state, token_id, pos_id, keys, values)
+        if pos_id < len(prompt):
+            ch = prompt[pos_id]
+            if ch not in state["stoi"]:
+                return ""
+            token_id = state["stoi"][ch]
+            continue
+
+        probs = softmax([l / temperature for l in logits])
+        token_id = random.choices(range(state["vocab_size"]), weights=[p.data for p in probs])[0]
+        if token_id == state["BOS"]:
+            break
+        ch = state["uchars"][token_id]
+        if not ch.isdigit():
+            break
+        generated.append(ch)
+        if len(generated) >= max_new_tokens:
+            break
+
+    return "".join(generated)
+
+
+def generate_addition_tests(state, count):
+    supported_digits = max_addition_digits_for_block(state["block_size"])
+    digits = min(state["addition_max_digits"], supported_digits)
+    max_addend = (10 ** digits) - 1
+    max_answer_digits = digits + 1
+    samples = []
+
+    for _ in range(count):
+        a = random.randint(0, max_addend)
+        b = random.randint(0, max_addend)
+        expected = str(a + b)
+        prompt = f"{a}+{b}="
+        predicted = complete_from_prompt(state, prompt, max_answer_digits, temperature=0.15)
+        predicted = predicted or "?"
+        verdict = "OK" if predicted == expected else "MISS"
+        samples.append(f"{prompt}{predicted} | target {expected} | {verdict}")
+
+    return samples
 `;

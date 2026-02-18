@@ -309,7 +309,7 @@
           <a href="https://gist.github.com/karpathy/8627fe009c40f57531cb18360106ce95" target="_blank" rel="noreferrer">MicroGPT in 200 lines of Python gist</a>,
           running in Pyodide inside a Web Worker so training does not freeze the page.
           For better convergence this version adds mini-batch updates, warmup + cosine learning-rate decay, and gradient clipping.
-          The model learns to generate names.
+          Use the dataset dropdown to switch between name generation and addition-equation generation.
         </p>
       </section>
 
@@ -318,9 +318,18 @@
           <h2>Training Controls</h2>
 
           <div class="stack">
-            <label for="datasetUrl">Dataset (hardcoded)</label>
-            <input id="datasetUrl" type="url" readonly spellcheck="false" />
-            <p class="hint">This dataset contains first names, one name per line.</p>
+            <label for="datasetSelect">Dataset</label>
+            <select id="datasetSelect">
+              <option value="names">Names (TXT)</option>
+              <option value="addition">Addition (CSV)</option>
+            </select>
+          </div>
+
+          <div class="stack">
+            <label for="datasetUrl">Dataset source</label>
+            <input id="datasetUrl" type="text" readonly spellcheck="false" />
+            <p class="hint" id="datasetHint">This dataset contains first names, one name per line.</p>
+            <p class="hint" id="datasetCapacityHint"></p>
             <p class="hint">Load state: <strong id="datasetState">Loading...</strong></p>
           </div>
 
@@ -378,7 +387,7 @@
 
           <div class="generate-wrap" id="generateWrap" hidden>
             <div class="stack">
-              <label for="generateCount">Generate names after training</label>
+              <label for="generateCount" id="generateLabel">Generate names after training</label>
               <select id="generateCount">
                 <option value="5">5</option>
                 <option value="10" selected>10</option>

@@ -6,10 +6,23 @@ A browser-based port of Andrej Karpathy's pure-Python MicroGPT implementation:
 ## What this app does
 
 - Runs MicroGPT training in the browser using Pyodide in a Web Worker
-- Uses a hardcoded names dataset (`makemore/names.txt`)
+- Supports dataset selection in the UI:
+  - Names dataset (`makemore/names.txt`)
+  - Addition CSV dataset (`src/data/addition_examples.csv`)
 - Displays live training loss, step, speed, and logs
 - Shows dataset load state and dataset stats (rows, vocab size, average length)
-- After training completes, lets you generate `5`, `10`, or `15` names on demand
+- After training completes, lets you generate `5`, `10`, or `15` outputs on demand (names or addition tests)
+
+## Addition dataset sizing
+
+- Model context window is `block_size=16`, which means max trainable sequence length is `15` chars.
+- For addition format `a+b=c`, worst-case length is `3d+3` for `d`-digit addends.
+- Therefore the architecture can support up to `4-digit` addends in principle.
+- The included CSV intentionally trains up to `3-digit` addends for better stability with this tiny model size.
+- CSV size is `40,000` rows:
+  - all `1-digit` pairs (`100`)
+  - all `2-digit` pairs (`10,000`)
+  - `29,900` sampled `3-digit` pairs
 
 ## Convergence improvements in this version
 
@@ -42,5 +55,5 @@ Compared with the original minimalist loop, this browser implementation adds a f
 
 ## Notes
 
-- The dataset is names-only, so the trained model generates name-like strings.
+- In addition mode, generation returns equation-style tests with predicted vs target sums.
 - Training happens fully client-side in your browser session.
