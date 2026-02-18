@@ -28,8 +28,8 @@ const DATASETS = {
     format: "csv",
     taskType: "addition",
     description: "Addition equations, one example per CSV row, e.g. 12+7=19.",
-    notes: "Includes 40,000 examples with addends up to 3 digits.",
-    additionMaxDigits: 3,
+    notes: "Includes about 40,000 examples using 2-digit addends (0-99).",
+    additionMaxDigits: 2,
   },
 };
 

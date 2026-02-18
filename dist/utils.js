@@ -34,7 +34,7 @@ export function validateConfig(rawConfig = {}) {
     min_lr_ratio: clampFloat(rawConfig.min_lr_ratio, 0.01, 1, 0.15),
     grad_clip: clampFloat(rawConfig.grad_clip, 0.1, 5, 1.0),
     task_type: rawConfig.task_type === "addition" ? "addition" : "names",
-    addition_max_digits: clampInt(rawConfig.addition_max_digits, 1, 6, 3),
+    addition_max_digits: clampInt(rawConfig.addition_max_digits, 1, 6, 2),
   };
   return cfg;
 }

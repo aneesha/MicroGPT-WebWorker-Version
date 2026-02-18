@@ -46,6 +46,11 @@ test("validateConfig clamps invalid values", () => {
   assert.equal(cfg.addition_max_digits, 6);
 });
 
+test("validateConfig uses 2-digit default for addition max digits", () => {
+  const cfg = validateConfig({});
+  assert.equal(cfg.addition_max_digits, 2);
+});
+
 test("ensureEnoughDocs enforces minimum documents", () => {
   assert.throws(() => ensureEnoughDocs(["single"]), /at least two/i);
   assert.doesNotThrow(() => ensureEnoughDocs(["a", "b"]));

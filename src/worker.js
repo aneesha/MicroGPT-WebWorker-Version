@@ -220,7 +220,7 @@ def run_training(dataset_text, config_json):
     task_type = config.get("task_type", "names")
     if task_type not in ("names", "addition"):
         task_type = "names"
-    addition_max_digits = max(1, min(6, int(config.get("addition_max_digits", 3))))
+    addition_max_digits = max(1, min(6, int(config.get("addition_max_digits", 2))))
 
     docs = [line.strip() for line in dataset_text.splitlines() if line.strip()]
     if len(docs) < 2:

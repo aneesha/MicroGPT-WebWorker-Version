@@ -18,11 +18,9 @@ A browser-based port of Andrej Karpathy's pure-Python MicroGPT implementation:
 - Model context window is `block_size=16`, which means max trainable sequence length is `15` chars.
 - For addition format `a+b=c`, worst-case length is `3d+3` for `d`-digit addends.
 - Therefore the architecture can support up to `4-digit` addends in principle.
-- The included CSV intentionally trains up to `3-digit` addends for better stability with this tiny model size.
+- The included CSV intentionally trains only `2-digit` addends for better stability with this tiny model size.
 - CSV size is `40,000` rows:
-  - all `1-digit` pairs (`100`)
-  - all `2-digit` pairs (`10,000`)
-  - `29,900` sampled `3-digit` pairs
+  - all `2-digit` pairs (`10,000`) repeated 4 times in shuffled order
 
 ## Convergence improvements in this version
 
